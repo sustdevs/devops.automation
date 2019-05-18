@@ -1,45 +1,88 @@
 #! /bin/sh
 
-set -eu  ## 'e' == exit/fail script on any command failure; 'u' == use of unset variables causes exit/fail
-
-#
+# set -eu  ## 'e' == exit/fail script on any command failure (note: causes `return` to function like `exit`); 'u' == use of unset variables causes exit/fail
+# * ref: [Unexpected function of `-e`](http://mywiki.wooledge.org/BashFAQ/105)[`@`](http://archive.is/vRKCQ)
+# * use `shellcheck` instead of `set -u` to catch variable misspellings
 
 VERBOSE=${VERBOSE:-2}    # null, 0, 1, 2, ... == increasing logging verbosity
 
 #
 
-host=4532CM.houseofivy.net
-port=42202
-user=toor
+# host=4532CM.houseofivy.net
+# port=42202
+# user=toor
 
 #
 #: NOTE: QNAP version for limitations of busybox (`basename`, `dirname`, `readlink` unable to parse `--`; `readlink` throws errors on non-link arguments)
-__ME=$(basename "$0")
+# shellcheck disable=SC2034
+{
 __ME_path="$0"
-__ME_dir=$(dirname "$0")
+__ME_zero="$(echo "$0" | sed 's/^-/.\/-/')"
+__ME=$(basename "$__ME_zero")
+__ME_dir=$(dirname "$__ME_zero")
 __ME_dir_abs=$(unset CDPATH; cd -- "$__ME_dir" && pwd -L)
 __ME_dir_abs_physical=$(unset CDPATH; cd -- "$__ME_dir" && pwd -P)
 __ME_path_abs="$__ME_dir_abs/$__ME"
 __ME_realcwd_abs=$(pwd -P)
 __ME_realpath_abs="$__ME_dir_abs_physical/$__ME" && [ -L "$__ME_realpath_abs" ] && __ME_realpath_abs=$(readlink "$__ME_realpath_abs")
 __ME_realdir_abs=$(dirname "$__ME_realpath_abs")
+}
 #
 
-[ $VERBOSE ] && echo "[ $0 $* ] (by $(whoami) (uid:$(id -u)))"
+PRINTF=$(which printf || echo "\"$(which busybox)\" printf")
+
+truthy() { val="$(echo "$*" | tr '[:upper:]' '[:lower:]')" ; case $val in ""|"0"|"f"|"false"|"n"|"never"|"no"|"off") val="" ;; *) val=1 ;; esac ; echo "${val}" ; }
+
+ANSI_COLOR=${ANSI_COLOR=auto} ; ANSI_COLOR="$(echo "${ANSI_COLOR}" | tr '[:upper:]' '[:lower:]')"
+# echo "ANSI_COLOR = ${ANSI_COLOR}"
+STDOUT_IS_TTY="" ; test -t 1 && STDOUT_IS_TTY=1
+# echo "STDOUT_IS_TTY = ${STDOUT_IS_TTY}"
+[ "${ANSI_COLOR}" = "auto" ] && ANSI_COLOR="${STDOUT_IS_TTY}"
+# echo "ANSI_COLOR = ${ANSI_COLOR}"
+ANSI_COLOR="$(truthy "${ANSI_COLOR}")"
+echo "ANSI_COLOR = ${ANSI_COLOR}"
+# exit 0
+
+# color
+ColorFullReset() { $PRINTF "%s" "${1}" ; [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[m' ; }
+ColorReset() { $PRINTF "%s" "${1}" ; [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[0;39m' ; }
+ColorBright() { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[1m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorRed()     { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[31m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorGreen()   { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[32m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorYellow()  { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[33m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorBlue()    { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[34m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorMagenta() { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[35m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorCyan()    { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[36m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+ColorWhite()   { [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[37m' ; $PRINTF "%s" "$(ColorReset "${1}")" ; }
+
+# error functions
+WARNmessage() { echo "$(ColorYellow "WARN:") ${*}" 1>&2 ; }
+ERRmessage() { echo "$(ColorRed "ERR!:") ${*}" 1>&2 ; }
+ExitWithError() { exit_val="${*}" ; exit_val=${exit_val:=1}; exit $exit_val ; }
+ExitWithERRmessage() { ERRmessage "${*}" ; ExitWithError ; }
+
+#
+
+[ "${VERBOSE}" ] && echo "[ $(ColorCyan "${0}") $* ] (by $(whoami) (uid:$(id -u)))"
 
 #
 
 exit_val=0
-test -z "${I_PW:=}" && ( echo "ERR!: missing password; use \`export I_PW=...\` to preset the information" 1>&2 ; exit_val=1 ; )
-test -z "${I_REPO_DIR:=}" && ( echo "ERR!: missing directory specification; use \`export I_REPO_DIR=...\` to preset the information" 1>&2 ; exit_val=1 ; )
-test $exit_val -ne 0  && ( return 1 >/dev/null || exit 1 ) ;
+test -z "${I_PW:=}" && { ERRmessage "missing password; use \`$(ColorCyan "export I_PW=...")\` to preset the information" ; exit_val=1 ; }
+test -z "${I_REPO_DIR:=}" && { ERRmessage "missing directory specification; use \`$(ColorCyan "export I_REPO_DIR=...")\` to preset the information" ; exit_val=1 ; }
+test "${exit_val}" -ne 0 && ExitWithError $exit_val
 
 #* clone secrets and decrypt them
-sudo apt update
-sudo apt install git gpg
-git clone https://github.com/CICD-tools/devops.wass.git REPO_DIR
-cd REPO_DIR
-gpg --batch --passphrase "$GPW" --output ssh.tgz --decrypt ssh.tgz.\[SACIv2\].gpg
+sudo apt update || ExitWithERRmessage "\`apt update\` failure"
+sudo apt install git gpg || ExitWithERRmessage "\`git\` and/or \`gpg\` installation failure"
+git clone https://github.com/CICD-tools/devops.wass.git "${I_REPO_DIR}" || WARNmessage "\`git\` clone failure"
+cd -- "${I_REPO_DIR}" || ExitWithERRmessage "unable to \`cd\` into ${I_REPO_DIR}"
+__="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
+gpg --batch --passphrase "${I_PW}" --output ssh.tgz --decrypt ssh.tgz.\[SACIv2\].gpg || ExitWithERRmessage "unable to decrypt data (is I_PW set correctly?)"
+$PRINTF "Extracting SSH keys ... "
 tar zxf ssh.tgz
+echo "done"
+$PRINTF "Installing SSH keys ... "
 cp ssh/* ~/.ssh
 chmod u+rw,og-rw,a-x ~/.ssh/id_*
+echo "done"
