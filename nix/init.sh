@@ -85,20 +85,23 @@ which gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \
 git clone https://github.com/CICD-tools/devops.wass.git "${I_REPO_DIR}" || WARNmessage "\`git\` clone failure"
 cd -- "${I_REPO_DIR}" || ExitWithERRmessage "unable to \`cd\` into ${I_REPO_DIR}"
 __="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
-gpg --batch --passphrase "${I_PW}" --output ssh.tgz --decrypt ssh.tgz.\[SACIv2\].gpg || ExitWithERRmessage "unable to decrypt data (is I_PW set correctly?)"
+gpg --batch --passphrase "${I_PW}" --output "ssh.tgz" --decrypt ssh.tgz.\[SACIv2\].gpg || ExitWithERRmessage "unable to decrypt data (is I_PW set correctly?)"
 $PRINTF "Extracting SSH keys ... "
-tar zxf ssh.tgz
-echo "done"
-$PRINTF "Installing SSH keys ... "
-cp ssh/* ~/.ssh
-chmod u+rw,og-rw,a-x ~/.ssh/id_*
+tar zxf "ssh.tgz" || ExitWithERRmessage "unable to extract SSH keys (\`tar zxf ...\` failed)"
+chmod -R u+rw,og-rw,a-x "ssh"/*
+export SSH_ID="$(pwd -L)/ssh/id_rsa"
 echo "done"
 
-# install unison
-sudo bash -c 'scp -P 42202 admin@4532CM.houseofivy.net:"/share/Vault/#qnap/projects/unison/lib/scripts/\$\#install-unison.sh" /dev/stdout | VERBOSE=2 sh'
-sudo -i bash -c '~/".unison/scripts/##.sh"'
-if [ ! $am_root ] ; then ~/".unison/scripts/##.sh" ; fi
+# install unison (requires `sudo` to install for all users)
+# ToDO: investigate local-user-only installation
+me_ug="$(id -nu).$(id -ng)"
+root_ug="$(sudo id -nu).$(sudo id -ng)"
+sudo chown "$root_ug" "${SSH_ID}"
+sudo bash -c "scp -i \"${SSH_ID}\" -P 42202 admin@4532CM.houseofivy.net:\"/share/Vault/#qnap/projects/unison/lib/scripts/\$\#install-unison.sh\" /dev/stdout | VERBOSE=2 sh"
+sudo -i bash -c "~/.unison/scripts/##.sh -sshargs \\\"-i \\\"${SSH_ID}\\\"\\\""
+sudo chown "$me_ug" "${SSH_ID}"
+if [ ! $am_root ] ; then ~/".unison/scripts/##.sh" -sshargs \"-i \"${SSH_ID}\"\" ; fi
 
-# setup HOME links
-if [ ! $am_root ] ; then sudo -i bash -c '~/".sh/bin/sh-links-upinit.sh"' ; fi
-~/.sh/bin/sh-links-upinit.sh
+# # setup HOME directory symbolic links
+# if [ ! $am_root ] ; then sudo -i bash -c '~/".sh/bin/sh-links-upinit.sh"' ; fi
+# ~/".sh/bin/sh-links-upinit.sh"
