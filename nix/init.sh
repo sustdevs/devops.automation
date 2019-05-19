@@ -1,5 +1,8 @@
 #! /bin/sh
 
+# export I_PW=... ; export I_REPO_DIR=... ;
+# `wget https://raw.githubusercontent.com/CICD-tools/devops.automation/master/nix/init.sh -O - | sh`
+
 # set -eu  ## 'e' == exit/fail script on any command failure (note: causes `return` to function like `exit`); 'u' == use of unset variables causes exit/fail
 # * ref: [Unexpected function of `-e`](http://mywiki.wooledge.org/BashFAQ/105)[`@`](http://archive.is/vRKCQ)
 # * use `shellcheck` instead of `set -u` to catch variable misspellings
