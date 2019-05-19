@@ -29,6 +29,8 @@ __ME_realdir_abs=$(dirname "$__ME_realpath_abs")
 }
 #
 
+am_root=""; if [ $(id -u) = 0 ]; then am_root=1; fi
+
 PRINTF=$(which printf || echo "\"$(which busybox)\" printf")
 
 truthy() { val="$(echo "$*" | tr '[:upper:]' '[:lower:]')" ; case $val in ""|"0"|"f"|"false"|"n"|"never"|"no"|"off") val="" ;; *) val=1 ;; esac ; echo "${val}" ; }
@@ -72,9 +74,11 @@ test -z "${I_PW:=}" && { ERRmessage "missing password; use \`$(ColorCyan "export
 test -z "${I_REPO_DIR:=}" && { ERRmessage "missing directory specification; use \`$(ColorCyan "export I_REPO_DIR=...")\` to preset the information" ; exit_val=1 ; }
 test "${exit_val}" -ne 0 && ExitWithError $exit_val
 
-#* clone secrets and decrypt them
-sudo apt update || ExitWithERRmessage "\`apt update\` failure"
-sudo apt install git gpg || ExitWithERRmessage "\`git\` and/or \`gpg\` installation failure"
+# * clone secrets, decrypt SSH keys and install them
+## sudo apt update || ExitWithERRmessage "\`apt update\` failure"
+which git >/dev/null || { sudo apt install git || ExitWithERRmessage "required \`git\` installation failure" ; }
+which gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \`gpg\` installation failure" ; }
+## sudo apt install git gpg || ExitWithERRmessage "\`git\` and/or \`gpg\` installation failure"
 git clone https://github.com/CICD-tools/devops.wass.git "${I_REPO_DIR}" || WARNmessage "\`git\` clone failure"
 cd -- "${I_REPO_DIR}" || ExitWithERRmessage "unable to \`cd\` into ${I_REPO_DIR}"
 __="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
@@ -86,3 +90,12 @@ $PRINTF "Installing SSH keys ... "
 cp ssh/* ~/.ssh
 chmod u+rw,og-rw,a-x ~/.ssh/id_*
 echo "done"
+
+# install unison
+sudo bash -c 'scp -P 42202 admin@4532CM.houseofivy.net:"/share/Vault/#qnap/projects/unison/lib/scripts/\$\#install-unison.sh" /dev/stdout | VERBOSE=2 sh'
+sudo -i bash -c '~/".unison/scripts/##.sh"'
+if [ ! $am_root ] ; then ~/".unison/scripts/##.sh" ; fi
+
+# setup HOME links
+if [ ! $am_root ] ; then sudo -i bash -c '~/".sh/bin/sh-links-upinit.sh"' ; fi
+~/.sh/bin/sh-links-upinit.sh
