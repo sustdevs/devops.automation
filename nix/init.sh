@@ -39,14 +39,10 @@ PRINTF=$(which printf || echo "\"$(which busybox)\" printf")
 truthy() { val="$(echo "$*" | tr '[:upper:]' '[:lower:]')" ; case $val in ""|"0"|"f"|"false"|"n"|"never"|"no"|"off") val="" ;; *) val=1 ;; esac ; echo "${val}" ; }
 
 ANSI_COLOR=${ANSI_COLOR=auto} ; ANSI_COLOR="$(echo "${ANSI_COLOR}" | tr '[:upper:]' '[:lower:]')"
-# echo "ANSI_COLOR = ${ANSI_COLOR}"
 STDOUT_IS_TTY="" ; test -t 1 && STDOUT_IS_TTY=1
-# echo "STDOUT_IS_TTY = ${STDOUT_IS_TTY}"
 [ "${ANSI_COLOR}" = "auto" ] && ANSI_COLOR="${STDOUT_IS_TTY}"
-# echo "ANSI_COLOR = ${ANSI_COLOR}"
 ANSI_COLOR="$(truthy "${ANSI_COLOR}")"
 echo "ANSI_COLOR = ${ANSI_COLOR}"
-# exit 0
 
 # color
 ColorFullReset() { $PRINTF "%s" "${1}" ; [ "${ANSI_COLOR}" ] && $PRINTF "%s" '\033[m' ; }
@@ -84,11 +80,11 @@ which gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \
 ## sudo apt install git gpg || ExitWithERRmessage "\`git\` and/or \`gpg\` installation failure"
 git clone https://github.com/CICD-tools/devops.wass.git "${I_REPO_DIR}" || WARNmessage "\`git\` clone failure"
 cd -- "${I_REPO_DIR}" || ExitWithERRmessage "unable to \`cd\` into ${I_REPO_DIR}"
-__="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
-gpg --batch --passphrase "${I_PW}" --output "ssh.tgz" --decrypt ssh.tgz.\[SACIv2\].gpg || ExitWithERRmessage "unable to decrypt data (is I_PW set correctly?)"
+chmod -R u+rw,go-rwx .
+# __="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
 $PRINTF "Extracting SSH keys ... "
-tar zxf "ssh.tgz" || ExitWithERRmessage "unable to extract SSH keys (\`tar zxf ...\` failed)"
-chmod -R u+rw,og-rw,a-x "ssh"/*
+$(gpg --batch --quiet --passphrase "${I_PW}" --decrypt ssh.tgz.\[SACIv2\].gpg | tar zx ) || ExitWithERRmessage "unable to decrypt and extract data (is I_PW set correctly?)"
+chmod -R u+rw,og-rwx "ssh" ; chmod a-x "ssh"/*
 export SSH_ID="$(pwd -L)/ssh/id_rsa"
 echo "done"
 
