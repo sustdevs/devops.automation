@@ -1,6 +1,6 @@
 #! /bin/sh
 
-# export I_PW=... ; export I_REPO_DIR=... ;
+# export I_PW=... ; export I_REPO_DIR=... ; # logged into history issue?
 # `wget https://raw.githubusercontent.com/CICD-tools/devops.automation/master/nix/init.sh -O - | sh`
 
 # set -eu  ## 'e' == exit/fail script on any command failure (note: causes `return` to function like `exit`); 'u' == use of unset variables causes exit/fail
@@ -34,7 +34,7 @@ __ME_realdir_abs=$(dirname "$__ME_realpath_abs")
 
 am_root=""; if [ $(id -u) = 0 ]; then am_root=1; fi
 
-PRINTF=$(which printf || echo "\"$(which busybox)\" printf")
+PRINTF=$(command -v printf || echo "\"$(which busybox)\" printf")
 
 truthy() { val="$(echo "$*" | tr '[:upper:]' '[:lower:]')" ; case $val in ""|"0"|"f"|"false"|"n"|"never"|"no"|"off") val="" ;; *) val=1 ;; esac ; echo "${val}" ; }
 
@@ -75,15 +75,15 @@ test "${exit_val}" -ne 0 && ExitWithError $exit_val
 
 # * clone secrets, decrypt SSH keys and install them
 ## sudo apt update || ExitWithERRmessage "\`apt update\` failure"
-which git >/dev/null || { sudo apt install git || ExitWithERRmessage "required \`git\` installation failure" ; }
-which gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \`gpg\` installation failure" ; }
+command -v git >/dev/null || { sudo apt install git || ExitWithERRmessage "required \`git\` installation failure" ; }
+command -v gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \`gpg\` installation failure" ; }
 ## sudo apt install git gpg || ExitWithERRmessage "\`git\` and/or \`gpg\` installation failure"
 git clone https://github.com/CICD-tools/devops.wass.git "${I_REPO_DIR}" || WARNmessage "\`git\` clone failure"
 cd -- "${I_REPO_DIR}" || ExitWithERRmessage "unable to \`cd\` into ${I_REPO_DIR}"
 chmod -R u+rw,go-rwx .
 # __="ssh.tgz" ; test -f "${__}" && { WARNmessage "\"$(pwd -L)/${__}\" exists; removing it" ; rm "${__}" ; } ; unset __
 $PRINTF "Extracting SSH keys ... "
-$(gpg --batch --quiet --passphrase "${I_PW}" --decrypt ssh.tgz.\[SACIv2\].gpg | tar zx ) || ExitWithERRmessage "unable to decrypt and extract data (is I_PW set correctly?)"
+(gpg --batch --quiet --passphrase "${I_PW}" --decrypt ssh.tgz.\[SACIv2\].gpg | tar zx ) || ExitWithERRmessage "unable to decrypt and extract data (is I_PW set correctly?)"
 chmod -R u+rw,og-rwx "ssh" ; chmod a-x "ssh"/*
 export SSH_ID="$(pwd -L)/ssh/id_rsa"
 echo "done"
