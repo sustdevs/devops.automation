@@ -32,9 +32,9 @@ __ME_realdir_abs=$(dirname "$__ME_realpath_abs")
 }
 #
 
-am_root=""; if [ $(id -u) = 0 ]; then am_root=1; fi
+am_root=""; if [ "$(id -u)" = 0 ]; then am_root=1; fi
 
-PRINTF=$(command -v printf || echo "\"$(which busybox)\" printf")
+PRINTF=$(command -v printf || echo "\"$(command -v busybox)\" printf")
 
 truthy() { val="$(echo "$*" | tr '[:upper:]' '[:lower:]')" ; case $val in ""|"0"|"f"|"false"|"n"|"never"|"no"|"off") val="" ;; *) val=1 ;; esac ; echo "${val}" ; }
 
@@ -73,7 +73,7 @@ test -z "${I_PW:=}" && { ERRmessage "missing password; use \`$(ColorCyan "export
 test -z "${I_REPO_DIR:=}" && { ERRmessage "missing directory specification; use \`$(ColorCyan "export I_REPO_DIR=...")\` to preset the information" ; exit_val=1 ; }
 test "${exit_val}" -ne 0 && ExitWithError $exit_val
 
-# * clone secrets, decrypt SSH keys and install them
+# * clone secrets, decrypt and use SSH keys
 ## sudo apt update || ExitWithERRmessage "\`apt update\` failure"
 command -v git >/dev/null || { sudo apt install git || ExitWithERRmessage "required \`git\` installation failure" ; }
 command -v gpg >/dev/null || { sudo apt install gpg || ExitWithERRmessage "required \`gpg\` installation failure" ; }
@@ -85,7 +85,8 @@ chmod -R u+rw,go-rwx .
 $PRINTF "Extracting SSH keys ... "
 (gpg --batch --quiet --passphrase "${I_PW}" --decrypt ssh.tgz.\[SACIv2\].gpg | tar zx ) || ExitWithERRmessage "unable to decrypt and extract data (is I_PW set correctly?)"
 chmod -R u+rw,og-rwx "ssh" ; chmod a-x "ssh"/*
-export SSH_ID="$(pwd -L)/ssh/id_rsa"
+SSH_ID="$(pwd -L)/ssh/id_rsa"
+export SSH_ID
 echo "done"
 
 # install unison (requires `sudo` to install for all users)
@@ -94,9 +95,15 @@ me_ug="$(id -nu).$(id -ng)"
 root_ug="$(sudo id -nu).$(sudo id -ng)"
 sudo chown "$root_ug" "${SSH_ID}"
 sudo bash -c "scp -i \"${SSH_ID}\" -P 42202 admin@4532CM.houseofivy.net:\"/share/Vault/#qnap/projects/unison/lib/scripts/\$\#install-unison.sh\" /dev/stdout | VERBOSE=2 sh"
-sudo -i bash -c "~/.unison/scripts/##.sh -sshargs \\\"-i \\\"${SSH_ID}\\\"\\\""
+# shellcheck disable=SC2088
+{
+    sudo -i bash -c '~/.unison/scripts/##.sh -sshargs \\\"-i \\\"${SSH_ID}\\\"\\\"'
+}
 sudo chown "$me_ug" "${SSH_ID}"
-if [ ! $am_root ] ; then ~/".unison/scripts/##.sh" -sshargs \"-i \"${SSH_ID}\"\" ; fi
+# shellcheck disable=SC2086
+{
+    if [ ! $am_root ] ; then ~/".unison/scripts/##.sh" -sshargs \"-i \"${SSH_ID}\"\" ; fi
+}
 
 # # setup HOME directory symbolic links
 # if [ ! $am_root ] ; then sudo -i bash -c '~/".sh/bin/sh-links-upinit.sh"' ; fi
