@@ -1,5 +1,5 @@
-#$path = 'C:\Program Files (x86)\Google\Chrome\Application'
-$path = 'C:\Program Files\Google\Chrome\Application'
+$path = 'C:\Program Files (x86)\Google\Chrome\Application'
+#$path = 'C:\Program Files\Google\Chrome\Application'
 
 cd $path
 $bin = $path + '\chrome.exe'
